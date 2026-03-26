@@ -16,16 +16,24 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const require = createRequire(import.meta.url);
 
+// Debug: log the directory
+console.log('[DEBUG] __dirname:', __dirname);
+console.log('[DEBUG] process.cwd():', process.cwd());
+
+// Determine base directory - Vercel uses /var/task
+const baseDir = process.env.VERCEL ? '/var/task' : __dirname;
+console.log('[DEBUG] baseDir:', baseDir);
+
+// ─── Vega Providers Setup ────────────────────────────────────────────────────
+
+const VEGA_DIST = join(baseDir, 'vega-providers', 'dist');
+const MANIFEST_PATH = join(baseDir, 'vega-providers', 'manifest.json');
+
 const app = express();
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
 const PORT = process.env.PORT || 4000;
-
-// ─── Vega Providers Setup ────────────────────────────────────────────────────
-
-const VEGA_DIST = join(__dirname, 'vega-providers', 'dist');
-const MANIFEST_PATH = join(VEGA_DIST, '..', 'manifest.json');
 
 // Load getBaseUrl from vega-providers dist
 let getBaseUrlFn;
