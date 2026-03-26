@@ -16,13 +16,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const require = createRequire(import.meta.url);
 
-// ffmpeg for on-the-fly MKV → browser-compatible MP4 transcoding
-const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
-const ffmpeg = require('fluent-ffmpeg');
-ffmpeg.setFfmpegPath(ffmpegInstaller.path);
-console.log('[ffmpeg] Binary:', ffmpegInstaller.path);
-
-
 const app = express();
 app.use(cors({ origin: '*' }));
 app.use(express.json());
@@ -722,75 +715,6 @@ app.get('/api/telegram/stream', async (req, res) => {
     response.data.pipe(res);
   } catch (err) {
     console.error('[Telegram] ✗ Stream error:', err.response?.data || err.message);
-    if (!res.headersSent) res.status(500).json({ error: err.message });
-    else res.end();
-  }
-});
-
-// ── Transcode endpoint: MKV → MP4 (H.264/AAC) via ffmpeg ────────────────────
-// Works for any video format; remuxes/transcodes on-the-fly so browser can play
-app.get('/api/telegram/transcode', async (req, res) => {
-  console.log('[Transcode] Request for fileId:', req.query.fileId);
-  try {
-    const { fileId } = req.query;
-    if (!fileId) return res.status(400).json({ error: 'Missing fileId' });
-    if (!tgBotToken) return res.status(400).json({ error: 'Telegram not configured' });
-
-    let resolved;
-    try {
-      resolved = await resolveTelegramFileUrl(fileId);
-    } catch (e) {
-      if (e.code === 'FILE_TOO_BIG') {
-        return res.status(400).json({ error: 'File too large for Telegram Bot API (>20 MB).' });
-      }
-      throw e;
-    }
-
-    const { fileUrl, filePath } = resolved;
-    console.log('[Transcode] Transcoding:', filePath);
-
-    // Send fragmented MP4 so the browser can start playing instantly
-    res.setHeader('Content-Type', 'video/mp4');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Transfer-Encoding', 'chunked');
-
-    const proc = ffmpeg(fileUrl)
-      .inputOptions([
-        '-user_agent', 'Mozilla/5.0',
-        '-headers', `Authorization: `,
-      ])
-      .videoCodec('libx264')
-      .audioCodec('aac')
-      .outputOptions([
-        '-preset', 'ultrafast',   // minimal CPU latency
-        '-crf', '23',
-        '-movflags', 'frag_keyframe+empty_moov+faststart', // fragmented MP4 = streamable
-        '-f', 'mp4',
-      ])
-      .on('start', (cmd) => console.log('[Transcode] ffmpeg started:', cmd.substring(0, 120)))
-      .on('error', (err, stdout, stderr) => {
-        console.error('[Transcode] ffmpeg error:', err.message);
-        console.error('[Transcode] stderr:', stderr?.substring(0, 300));
-        if (!res.headersSent) res.status(500).json({ error: 'Transcode failed: ' + err.message });
-        else res.end();
-      })
-      .on('end', () => {
-        console.log('[Transcode] ✓ Done');
-        res.end();
-      });
-
-    // Pipe ffmpeg output directly to response
-    proc.pipe(res, { end: true });
-
-    // Cleanup if client disconnects
-    req.on('close', () => {
-      console.log('[Transcode] Client disconnected, killing ffmpeg');
-      proc.kill('SIGKILL');
-    });
-
-  } catch (err) {
-    console.error('[Transcode] ✗ Error:', err.message);
     if (!res.headersSent) res.status(500).json({ error: err.message });
     else res.end();
   }

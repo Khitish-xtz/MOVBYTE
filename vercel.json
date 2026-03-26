@@ -3,14 +3,7 @@
   "builds": [
     {
       "src": "server.js",
-      "use": "@vercel/node",
-      "config": {
-        "outputDirectory": "dist"
-      }
-    },
-    {
-      "src": "dist/**",
-      "use": "@vercel/static"
+      "use": "@vercel/node"
     }
   ],
   "routes": [
@@ -20,7 +13,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/dist/$1"
+      "dest": "/server.js"
     }
   ]
 }
